@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>反诈对练场 · 前测/后测</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--line:#e3e6ea;--text:#1f2329;--muted:#6b7280;--brand:#0a66ff;--ok:#12805c;--danger:#e5484d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+header{padding:14px 22px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+.tag{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:14px}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+input[type=text]{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:15px;outline:none}
+input[type=text]:focus{border-color:var(--brand)}
+.modes{display:flex;gap:10px;margin-top:14px}
+.mode{flex:1;border:1px solid var(--line);border-radius:8px;padding:14px;cursor:pointer;text-align:center;background:#fff}
+.mode:hover{border-color:var(--brand)}
+.mode.sel{border-color:var(--brand);background:#eef4ff;color:var(--brand);font-weight:600}
+.q{border-left:3px solid var(--line);padding-left:14px;margin:22px 0}
+.q.done{border-left-color:var(--ok)}
+.q h3{font-size:15px;margin:0 0 10px;line-height:1.6}
+.opt{display:block;padding:9px 12px;border:1px solid var(--line);border-radius:8px;margin:6px 0;cursor:pointer;font-size:14px}
+.opt:hover{background:#f7f9fc}
+.opt input{margin-right:8px}
+.opt.sel{border-color:var(--brand);background:#eef4ff}
+button{border:0;border-radius:8px;padding:11px 20px;font-size:15px;cursor:pointer;background:var(--brand);color:#fff}
+button.ghost{background:#fff;border:1px solid var(--line);color:var(--text)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.bar{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:12px 16px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.progress{font-size:13px;color:var(--muted)}
+.result{font-size:15px}
+.result b{font-size:32px;color:var(--brand);font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600}
+.hide{display:none}
+.note{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <h1>反诈对练场 · 前测 / 后测</h1>
+  <span class="tag">20 题 · 每题 5 分 · 满分 100</span>
+</header>
+
+<div class="wrap">
+  <!-- 登记 -->
+  <div class="card" id="setup">
+    <label for="pid">测试编号（建议用「P01」「P02」这样的序号，不要写真实姓名）</label>
+    <input type="text" id="pid" placeholder="例如 P01" autocomplete="off">
+    <div class="modes">
+      <div class="mode" data-phase="前测" id="mPre">前测<br><small style="font-weight:400">训练之前做</small></div>
+      <div class="mode" data-phase="后测" id="mPost">后测<br><small style="font-weight:400">训练之后做</small></div>
+    </div>
+    <div class="note">
+      同一名同学的前测和后测必须用<b>同一个测试编号</b>，否则无法配对计算。<br>
+      本页不联网、不上传任何数据，答完点「导出 CSV」把文件交给负责人。
+    </div>
+    <div style="margin-top:16px"><button id="start" disabled>开始答题</button></div>
+  </div>
+
+  <!-- 题目 -->
+  <div id="quiz" class="hide"></div>
+
+  <!-- 结算 -->
+  <div class="card hide" id="done">
+    <h3 style="margin:0 0 8px">已完成</h3>
+    <div class="result" id="resultText"></div>
+    <div id="explain"></div>
+    <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+      <button id="exportOne">导出本次结果</button>
+      <button class="ghost" id="exportAll">导出全部记录（多份合并）</button>
+      <button class="ghost" id="reset">清空本机记录</button>
+    </div>
+    <div class="note" id="storeInfo"></div>
+  </div>
+</div>
+
+<div class="bar hide" id="bar">
+  <span class="progress" id="progress">已答 0 / 20</span>
+  <button id="submit" disabled>提交</button>
+</div>
+
+<script>
+const DATA = {
+  "questions": [
+    {
+      "id": 1,
+      "stem": "接到自称\"市公安局刑侦支队\"的电话，说你名下银行卡涉嫌洗钱，要把钱转到\"安全账户\"核查。你应该？",
+      "options": {
+        "A": "按对方要求转账，证明清白",
+        "B": "挂断，拨打 96110 或 110 核实",
+        "C": "加对方微信，先看\"协查通知\"",
+        "D": "提供银行卡号和验证码配合调查"
+      }
+    },
+    {
+      "id": 2,
+      "stem": "兼职刷单：前几单都正常返利，之后要求你垫付大额完成\"连单任务\"。这最可能是？",
+      "options": {
+        "A": "正常兼职，继续做就能拿回本金",
+        "B": "刷单诈骗，垫付的钱拿不回来",
+        "C": "平台系统问题，再补一单就好",
+        "D": "需要联系客服协商"
+      }
+    },
+    {
+      "id": 3,
+      "stem": "自称电商客服来电，说你买的商品有质量问题要三倍赔付，让你加微信走\"理赔通道\"。你应该？",
+      "options": {
+        "A": "加微信，按客服指引操作",
+        "B": "开通\"备用金\"接收赔款",
+        "C": "只在官方 App 内查看订单和售后",
+        "D": "把多赔的钱转回\"对公账户\""
+      }
+    },
+    {
+      "id": 4,
+      "stem": "\"表哥\"用新号码加你微信，说在开会不能接电话，急需借 2000 元周转，转到\"朋友的卡\"。你应该？",
+      "options": {
+        "A": "亲戚开口就转",
+        "B": "用原号码回拨或视频核实",
+        "C": "让他发个语音就够了",
+        "D": "先转 500 试试"
+      }
+    },
+    {
+      "id": 5,
+      "stem": "网上认识的\"投资导师\"推荐内部渠道，小额投入提现很顺，让你加大投入。这通常是？",
+      "options": {
+        "A": "靠谱机会，趁早加仓",
+        "B": "杀猪盘，小额返利是诱饵",
+        "C": "正常的私募渠道",
+        "D": "平台系统漏洞"
+      }
+    },
+    {
+      "id": 6,
+      "stem": "自称\"金融平台专员\"来电，说你的校园贷账户不注销会影响征信，要求你在多个借贷平台借款\"验证额度\"后转给\"清算账户\"。你应该？",
+      "options": {
+        "A": "按要求操作，尽快注销",
+        "B": "征信记录需要转账才能修复",
+        "C": "挂断，自行登录官方渠道核实",
+        "D": "先借一笔小额验证"
+      }
+    },
+    {
+      "id": 7,
+      "stem": "贷款广告说\"不看征信、当天放款\"，但开通额度要先交 299 元会员费。这通常是？",
+      "options": {
+        "A": "正规平台的必要流程",
+        "B": "先收费后放款的诈骗套路",
+        "C": "会员费会在放款后返还",
+        "D": "交钱就能拿到高额度"
+      }
+    },
+    {
+      "id": 8,
+      "stem": "有人在群里低价转演唱会内场票，要求先付定金、走个人收款码，拒绝平台交易。你应该？",
+      "options": {
+        "A": "先付定金锁定位置",
+        "B": "私下转账更便宜，可以接受",
+        "C": "只在官方票务或正规二手平台交易",
+        "D": "让对方发\"订单截图\"确认就行"
+      }
+    },
+    {
+      "id": 9,
+      "stem": "关于\"公检法办案\"，下列说法正确的是？",
+      "options": {
+        "A": "会电话通知你涉案并要求保密",
+        "B": "会要求你把钱转到安全账户",
+        "C": "不会通过电话办案，也没有\"安全账户\"",
+        "D": "会通过微信发送协查通知"
+      }
+    },
+    {
+      "id": 10,
+      "stem": "对方能准确说出你的姓名、订单号、收货地址，说明？",
+      "options": {
+        "A": "对方一定是官方客服",
+        "B": "信息可能已泄露，仍需独立核实",
+        "C": "可以放心按对方指引操作",
+        "D": "说明订单确实有问题"
+      }
+    },
+    {
+      "id": 11,
+      "stem": "客服索要短信验证码\"核对身份\"，正确做法是？",
+      "options": {
+        "A": "报给对方，方便核实",
+        "B": "只报前三位",
+        "C": "任何情况下都不提供验证码",
+        "D": "先报验证码再看情况"
+      }
+    },
+    {
+      "id": 12,
+      "stem": "平台退款流程中，要求你先开通借贷产品\"接收赔款\"。这通常意味着？",
+      "options": {
+        "A": "平台新流程",
+        "B": "诈骗，正规退款不需要借贷",
+        "C": "可以开，反正是自己的账户",
+        "D": "开完就没事了"
+      }
+    },
+    {
+      "id": 13,
+      "stem": "熟人借钱，只用微信文字确认身份就够了吗？",
+      "options": {
+        "A": "够，文字也是本人发的",
+        "B": "不够，要语音或视频核实，最好回拨原号码",
+        "C": "够，对方能说出我的小名",
+        "D": "只要金额不大就没问题"
+      }
+    },
+    {
+      "id": 14,
+      "stem": "投资平台提现时，要求先缴纳\"保证金\"\"解冻费\"。这通常是？",
+      "options": {
+        "A": "正常的提现手续费",
+        "B": "诈骗，正规平台提现不需要额外缴费",
+        "C": "交了就能全部提出来",
+        "D": "平台风控要求"
+      }
+    },
+    {
+      "id": 15,
+      "stem": "全国反诈预警专线号码是？",
+      "options": {
+        "A": "12345",
+        "B": "96110",
+        "C": "12315",
+        "D": "10086"
+      }
+    },
+    {
+      "id": 16,
+      "stem": "收到\"您已中奖，需先缴纳个人所得税\"的短信。应该？",
+      "options": {
+        "A": "交税后领取奖金",
+        "B": "先交小额试试",
+        "C": "不理会，正规抽奖不会要求先交钱",
+        "D": "联系短信里的客服确认"
+      }
+    },
+    {
+      "id": 17,
+      "stem": "\"客服\"要求你共享屏幕\"协助操作\"，正确做法是？",
+      "options": {
+        "A": "共享，方便对方指导",
+        "B": "不共享，任何陌生人都不能看你的屏幕",
+        "C": "共享但遮住余额",
+        "D": "先共享，出问题再关"
+      }
+    },
+    {
+      "id": 18,
+      "stem": "发现被骗后，第一时间应该？",
+      "options": {
+        "A": "继续和对方沟通，争取退款",
+        "B": "保留证据（聊天记录、转账凭证），立即报警并联系银行",
+        "C": "先在网上找\"追款\"服务",
+        "D": "等几天看对方会不会退"
+      }
+    },
+    {
+      "id": 19,
+      "stem": "有人出借银行卡、帮忙\"跑分\"就能拿佣金，这属于？",
+      "options": {
+        "A": "合法兼职",
+        "B": "帮助信息网络犯罪，可能构成犯罪",
+        "C": "只要不知情就没事",
+        "D": "平台推广活动"
+      }
+    },
+    {
+      "id": 20,
+      "stem": "下列哪种说法是错误的？",
+      "options": {
+        "A": "公检法不会电话办案",
+        "B": "不存在\"安全账户\"",
+        "C": "陌生客服要求转账时，可以先转小额试试",
+        "D": "任何人都不能索要你的短信验证码"
+      }
+    }
+  ],
+  "answers": {
+    "1": "B",
+    "2": "B",
+    "3": "C",
+    "4": "B",
+    "5": "B",
+    "6": "C",
+    "7": "B",
+    "8": "C",
+    "9": "C",
+    "10": "B",
+    "11": "C",
+    "12": "B",
+    "13": "B",
+    "14": "B",
+    "15": "B",
+    "16": "C",
+    "17": "B",
+    "18": "B",
+    "19": "B",
+    "20": "C"
+  },
+  "explanations": {
+    "1": "公检法不会电话办案；挂断并拨 96110 核实",
+    "2": "先返利后垫付是刷单诈骗标准套路",
+    "3": "售后只在官方 App 内处理，不脱离平台",
+    "4": "熟人换号借钱必须原号码回拨或视频核实",
+    "5": "小额返利建立信任，大额提现受阻是杀猪盘",
+    "6": "征信不能靠转账修复，官方渠道核实",
+    "7": "正规贷款放款前不收费",
+    "8": "票务走官方或担保平台，不私下转账",
+    "9": "公检法不电话办案，无安全账户",
+    "10": "个人信息可能已泄露，仍需独立核实",
+    "11": "验证码任何情况下都不提供",
+    "12": "退款不需要借贷、不需要开通备用金",
+    "13": "文字可伪造，必须语音/视频或回拨",
+    "14": "提现交保证金是诈骗",
+    "15": "96110 是全国反诈预警专线",
+    "16": "正规抽奖不会要求先交钱",
+    "17": "共享屏幕会暴露验证码和余额",
+    "18": "保留证据 + 报警 + 联系银行止付",
+    "19": "出借银行卡/跑分涉嫌帮信罪",
+    "20": "\"先转小额试试\"正是诈骗诱导话术"
+  }
+};
+
+const STORE_KEY = 'fzdc_quiz_records';
+let pid = '', phase = '', answers = {};
+
+const $ = id => document.getElementById(id);
+
+// —— 登记 ——
+document.querySelectorAll('.mode').forEach(el => {
+  el.onclick = () => {
+    document.querySelectorAll('.mode').forEach(x => x.classList.remove('sel'));
+    el.classList.add('sel');
+    phase = el.dataset.phase;
+    checkStart();
+  };
+});
+$('pid').oninput = checkStart;
+function checkStart(){ $('start').disabled = !($('pid').value.trim() && phase); }
+
+$('start').onclick = () => {
+  pid = $('pid').value.trim();
+  answers = {};
+  $('setup').classList.add('hide');
+  $('bar').classList.remove('hide');
+  render();
+};
+
+// —— 渲染题目 ——
+function render(){
+  const box = $('quiz');
+  box.classList.remove('hide');
+  box.innerHTML = DATA.questions.map(q => `
+    <div class="card q" id="q${q.id}">
+      <h3>${q.id}. ${q.stem}</h3>
+      ${Object.entries(q.options).map(([k,v]) => `
+        <label class="opt" data-q="${q.id}" data-k="${k}">
+          <input type="radio" name="q${q.id}" value="${k}"> ${k}. ${v}
+        </label>`).join('')}
+    </div>`).join('');
+
+  box.querySelectorAll('.opt').forEach(el => {
+    el.onclick = () => {
+      const qid = el.dataset.q;
+      box.querySelectorAll(`.opt[data-q="${qid}"]`).forEach(x => x.classList.remove('sel'));
+      el.classList.add('sel');
+      answers[qid] = el.dataset.k;
+      $(`q${qid}`).classList.add('done');
+      updateProgress();
+    };
+  });
+  updateProgress();
+}
+
+function updateProgress(){
+  const n = Object.keys(answers).length;
+  $('progress').textContent = `已答 ${n} / ${DATA.questions.length}`;
+  $('submit').disabled = n < DATA.questions.length;
+}
+
+// —— 提交与计分 ——
+$('submit').onclick = () => {
+  const rows = [];
+  let score = 0;
+  DATA.questions.forEach(q => {
+    const mine = answers[q.id] || '';
+    const right = DATA.answers[q.id];
+    const ok = mine === right;
+    if (ok) score += 5;
+    rows.push({ id: q.id, mine, right, ok });
+  });
+
+  const rec = {
+    pid, phase,
+    ts: new Date().toISOString(),
+    score,
+    detail: Object.fromEntries(rows.map(r => [r.id, r.mine]))
+  };
+  saveRecord(rec);
+
+  $('quiz').classList.add('hide');
+  $('bar').classList.add('hide');
+  $('done').classList.remove('hide');
+
+  // 后测给解析，前测不给（避免提前泄题影响训练）
+  $('resultText').innerHTML = `${pid} · ${phase}　得分 <b>${score}</b> / 100`;
+  const wrong = rows.filter(r => !r.ok);
+  $('explain').innerHTML = phase === '后测' && wrong.length
+    ? `<div class="note">答错 ${wrong.length} 题，正确答案与解析：</div>
+       <table><tr><th>题号</th><th>你选</th><th>正确</th><th>解析</th></tr>
+       ${wrong.map(r => `<tr><td>${r.id}</td><td>${r.mine || '未答'}</td><td>${r.right}</td><td>${DATA.explanations[r.id]}</td></tr>`).join('')}
+       </table>`
+    : (phase === '前测' ? '<div class="note">前测不显示答案，以免影响后续训练效果。</div>' : '');
+  refreshStoreInfo();
+};
+
+// —— 本地存取（localStorage 不可用时降级到内存，保证同一次打开仍能导出）——
+const memoryStore = { data: null };
+function loadRecords(){
+  try {
+    const raw = memoryStore.data ?? localStorage.getItem(STORE_KEY) ?? '[]';
+    return JSON.parse(raw);
+  } catch { return []; }
+}
+function saveRecord(rec){
+  const all = loadRecords();
+  // 同编号同阶段覆盖，避免重复提交
+  const i = all.findIndex(r => r.pid === rec.pid && r.phase === rec.phase);
+  if (i >= 0) all[i] = rec; else all.push(rec);
+  const raw = JSON.stringify(all);
+  memoryStore.data = raw;
+  try { localStorage.setItem(STORE_KEY, raw); } catch { /* 内存里已存，不影响本次导出 */ }
+}
+function refreshStoreInfo(){
+  const all = loadRecords();
+  $('storeInfo').textContent = all.length
+    ? `本机已保存 ${all.length} 条记录：${all.map(r => `${r.pid}/${r.phase}`).join('、')}`
+    : '本机暂无记录。';
+}
+
+// —— 导出 CSV ——
+function toCSV(records){
+  const head = ['测试编号','阶段','时间','得分', ...DATA.questions.map(q => `Q${q.id}`), ...DATA.questions.map(q => `Q${q.id}_正确`)];
+  const lines = [head.join(',')];
+  records.forEach(r => {
+    const ans = DATA.questions.map(q => r.detail?.[q.id] ?? '');
+    const ok  = DATA.questions.map(q => (r.detail?.[q.id] === DATA.answers[q.id]) ? 1 : 0);
+    lines.push([r.pid, r.phase, r.ts, r.score, ...ans, ...ok].join(','));
+  });
+  return lines.join('\n');
+}
+function download(records, name){
+  const blob = new Blob(['﻿' + toCSV(records)], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+$('exportOne').onclick = () => {
+  const all = loadRecords();
+  const mine = all.filter(r => r.pid === pid && r.phase === phase);
+  if (mine.length) download(mine, `前测后测_${pid}_${phase}.csv`);
+};
+$('exportAll').onclick = () => {
+  const all = loadRecords();
+  if (!all.length) return alert('本机没有记录');
+  download(all, `前测后测_全部_${all.length}条.csv`);
+};
+$('reset').onclick = () => {
+  if (confirm('确定清空本机所有答题记录？导出过再清。')) {
+    memoryStore.data = '[]';
+    try { localStorage.removeItem(STORE_KEY); } catch {}
+    refreshStoreInfo();
+  }
+};
+refreshStoreInfo();
+</script>
+</body>
+</html>

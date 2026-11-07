@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>反诈对练场 · 前测/后测</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--line:#e3e6ea;--text:#1f2329;--muted:#6b7280;--brand:#0a66ff;--ok:#12805c;--danger:#e5484d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+header{padding:14px 22px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+.tag{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:14px}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+input[type=text]{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:15px;outline:none}
+input[type=text]:focus{border-color:var(--brand)}
+.modes{display:flex;gap:10px;margin-top:14px}
+.mode{flex:1;border:1px solid var(--line);border-radius:8px;padding:14px;cursor:pointer;text-align:center;background:#fff}
+.mode:hover{border-color:var(--brand)}
+.mode.sel{border-color:var(--brand);background:#eef4ff;color:var(--brand);font-weight:600}
+.q{border-left:3px solid var(--line);padding-left:14px;margin:22px 0}
+.q.done{border-left-color:var(--ok)}
+.q h3{font-size:15px;margin:0 0 10px;line-height:1.6}
+.opt{display:block;padding:9px 12px;border:1px solid var(--line);border-radius:8px;margin:6px 0;cursor:pointer;font-size:14px}
+.opt:hover{background:#f7f9fc}
+.opt input{margin-right:8px}
+.opt.sel{border-color:var(--brand);background:#eef4ff}
+button{border:0;border-radius:8px;padding:11px 20px;font-size:15px;cursor:pointer;background:var(--brand);color:#fff}
+button.ghost{background:#fff;border:1px solid var(--line);color:var(--text)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.bar{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:12px 16px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.progress{font-size:13px;color:var(--muted)}
+.result{font-size:15px}
+.result b{font-size:32px;color:var(--brand);font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600}
+.hide{display:none}
+.note{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <h1>反诈对练场 · 前测 / 后测</h1>
+  <span class="tag">20 题 · 每题 5 分 · 满分 100</span>
+</header>
+
+<div class="wrap">
+  <!-- 登记 -->
+  <div class="card" id="setup">
+    <label for="pid">测试编号（建议用「P01」「P02」这样的序号，不要写真实姓名）</label>
+    <input type="text" id="pid" placeholder="例如 P01" autocomplete="off">
+    <div class="modes">
+      <div class="mode" data-phase="前测" id="mPre">前测<br><small style="font-weight:400">训练之前做</small></div>
+      <div class="mode" data-phase="后测" id="mPost">后测<br><small style="font-weight:400">训练之后做</small></div>
+    </div>
+    <div class="note">
+      同一名同学的前测和后测必须用<b>同一个测试编号</b>，否则无法配对计算。<br>
+      本页不联网、不上传任何数据，答完点「导出 CSV」把文件交给负责人。
+    </div>
+    <div style="margin-top:16px"><button id="start" disabled>开始答题</button></div>
+  </div>
+
+  <!-- 题目 -->
+  <div id="quiz" class="hide"></div>
+
+  <!-- 结算 -->
+  <div class="card hide" id="done">
+    <h3 style="margin:0 0 8px">已完成</h3>
+    <div class="result" id="resultText"></div>
+    <div id="explain"></div>
+    <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+      <button id="exportOne">导出本次结果</button>
+      <button class="ghost" id="exportAll">导出全部记录（多份合并）</button>
+      <button class="ghost" id="reset">清空本机记录</button>
+    </div>
+    <div class="note" id="storeInfo"></div>
+  </div>
+</div>
+
+<div class="bar hide" id="bar">
+  <span class="progress" id="progress">已答 0 / 20</span>
+  <button id="submit" disabled>提交</button>
+</div>
+
+<script>
+const DATA = /*__DATA__*/;
+
+const STORE_KEY = 'fzdc_quiz_records';
+let pid = '', phase = '', answers = {};
+
+const $ = id => document.getElementById(id);
+
+// —— 登记 ——
+document.querySelectorAll('.mode').forEach(el => {
+  el.onclick = () => {
+    document.querySelectorAll('.mode').forEach(x => x.classList.remove('sel'));
+    el.classList.add('sel');
+    phase = el.dataset.phase;
+    checkStart();
+  };
+});
+$('pid').oninput = checkStart;
+function checkStart(){ $('start').disabled = !($('pid').value.trim() && phase); }
+
+$('start').onclick = () => {
+  pid = $('pid').value.trim();
+  answers = {};
+  $('setup').classList.add('hide');
+  $('bar').classList.remove('hide');
+  render();
+};
+
+// —— 渲染题目 ——
+function render(){
+  const box = $('quiz');
+  box.classList.remove('hide');
+  box.innerHTML = DATA.questions.map(q => `
+    <div class="card q" id="q${q.id}">
+      <h3>${q.id}. ${q.stem}</h3>
+      ${Object.entries(q.options).map(([k,v]) => `
+        <label class="opt" data-q="${q.id}" data-k="${k}">
+          <input type="radio" name="q${q.id}" value="${k}"> ${k}. ${v}
+        </label>`).join('')}
+    </div>`).join('');
+
+  box.querySelectorAll('.opt').forEach(el => {
+    el.onclick = () => {
+      const qid = el.dataset.q;
+      box.querySelectorAll(`.opt[data-q="${qid}"]`).forEach(x => x.classList.remove('sel'));
+      el.classList.add('sel');
+      answers[qid] = el.dataset.k;
+      $(`q${qid}`).classList.add('done');
+      updateProgress();
+    };
+  });
+  updateProgress();
+}
+
+function updateProgress(){
+  const n = Object.keys(answers).length;
+  $('progress').textContent = `已答 ${n} / ${DATA.questions.length}`;
+  $('submit').disabled = n < DATA.questions.length;
+}
+
+// —— 提交与计分 ——
+$('submit').onclick = () => {
+  const rows = [];
+  let score = 0;
+  DATA.questions.forEach(q => {
+    const mine = answers[q.id] || '';
+    const right = DATA.answers[q.id];
+    const ok = mine === right;
+    if (ok) score += 5;
+    rows.push({ id: q.id, mine, right, ok });
+  });
+
+  const rec = {
+    pid, phase,
+    ts: new Date().toISOString(),
+    score,
+    detail: Object.fromEntries(rows.map(r => [r.id, r.mine]))
+  };
+  saveRecord(rec);
+
+  $('quiz').classList.add('hide');
+  $('bar').classList.add('hide');
+  $('done').classList.remove('hide');
+
+  // 后测给解析，前测不给（避免提前泄题影响训练）
+  $('resultText').innerHTML = `${pid} · ${phase}　得分 <b>${score}</b> / 100`;
+  const wrong = rows.filter(r => !r.ok);
+  $('explain').innerHTML = phase === '后测' && wrong.length
+    ? `<div class="note">答错 ${wrong.length} 题，正确答案与解析：</div>
+       <table><tr><th>题号</th><th>你选</th><th>正确</th><th>解析</th></tr>
+       ${wrong.map(r => `<tr><td>${r.id}</td><td>${r.mine || '未答'}</td><td>${r.right}</td><td>${DATA.explanations[r.id]}</td></tr>`).join('')}
+       </table>`
+    : (phase === '前测' ? '<div class="note">前测不显示答案，以免影响后续训练效果。</div>' : '');
+  refreshStoreInfo();
+};
+
+// —— 本地存取（localStorage 不可用时降级到内存，保证同一次打开仍能导出）——
+const memoryStore = { data: null };
+function loadRecords(){
+  try {
+    const raw = memoryStore.data ?? localStorage.getItem(STORE_KEY) ?? '[]';
+    return JSON.parse(raw);
+  } catch { return []; }
+}
+function saveRecord(rec){
+  const all = loadRecords();
+  // 同编号同阶段覆盖，避免重复提交
+  const i = all.findIndex(r => r.pid === rec.pid && r.phase === rec.phase);
+  if (i >= 0) all[i] = rec; else all.push(rec);
+  const raw = JSON.stringify(all);
+  memoryStore.data = raw;
+  try { localStorage.setItem(STORE_KEY, raw); } catch { /* 内存里已存，不影响本次导出 */ }
+}
+function refreshStoreInfo(){
+  const all = loadRecords();
+  $('storeInfo').textContent = all.length
+    ? `本机已保存 ${all.length} 条记录：${all.map(r => `${r.pid}/${r.phase}`).join('、')}`
+    : '本机暂无记录。';
+}
+
+// —— 导出 CSV ——
+function toCSV(records){
+  const head = ['测试编号','阶段','时间','得分', ...DATA.questions.map(q => `Q${q.id}`), ...DATA.questions.map(q => `Q${q.id}_正确`)];
+  const lines = [head.join(',')];
+  records.forEach(r => {
+    const ans = DATA.questions.map(q => r.detail?.[q.id] ?? '');
+    const ok  = DATA.questions.map(q => (r.detail?.[q.id] === DATA.answers[q.id]) ? 1 : 0);
+    lines.push([r.pid, r.phase, r.ts, r.score, ...ans, ...ok].join(','));
+  });
+  return lines.join('\n');
+}
+function download(records, name){
+  const blob = new Blob(['﻿' + toCSV(records)], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+$('exportOne').onclick = () => {
+  const all = loadRecords();
+  const mine = all.filter(r => r.pid === pid && r.phase === phase);
+  if (mine.length) download(mine, `前测后测_${pid}_${phase}.csv`);
+};
+$('exportAll').onclick = () => {
+  const all = loadRecords();
+  if (!all.length) return alert('本机没有记录');
+  download(all, `前测后测_全部_${all.length}条.csv`);
+};
+$('reset').onclick = () => {
+  if (confirm('确定清空本机所有答题记录？导出过再清。')) {
+    memoryStore.data = '[]';
+    try { localStorage.removeItem(STORE_KEY); } catch {}
+    refreshStoreInfo();
+  }
+};
+refreshStoreInfo();
+</script>
+</body>
+</html>
